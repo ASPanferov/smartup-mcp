@@ -1,0 +1,39 @@
+{
+  "name": "smartup-mcp",
+  "version": "1.1.0",
+  "description": "MCP server for SmartUp ERP: orders, stock, prices, contractors, debts and sales",
+  "main": "server/index.js",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "smartup",
+    "erp",
+    "uzbekistan",
+    "claude"
+  ],
+  "author": "Artem Panferov <panferov.uz> (https://ailab.uz)",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "pack": "mcpb pack",
+    "check": "node --check server/index.js && node -e \"import('./server/tools.js').then(m=>console.log('tools:', m.TOOLS.length))\""
+  },
+  "homepage": "https://github.com/ASPanferov/smartup-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/ASPanferov/smartup-mcp/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ASPanferov/smartup-mcp.git"
+  },
+  "files": [
+    "server",
+    "manifest.json",
+    "icon.png",
+    "LICENSE"
+  ]
+}

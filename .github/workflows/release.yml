@@ -1,0 +1,34 @@
+# Сборка расширения для Claude Desktop при выпуске версии.
+#
+# Тег вида v1.1.0 → собранный smartup.mcpb появляется в релизе. Собирать
+# вручную и прикладывать файл руками означало бы, что однажды в релизе
+# окажется сборка не из того коммита.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Зависимости ставим без dev: они уезжают внутрь расширения, и лишние
+      # мегабайты пользователь качает при каждой установке
+      - run: npm ci --omit=dev
+
+      - run: npx --yes @anthropic-ai/mcpb pack . smartup.mcpb
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: smartup.mcpb
+          generate_release_notes: true

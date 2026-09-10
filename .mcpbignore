@@ -1,0 +1,6 @@
+# В сборку не кладём: исходники проверок, кэши и мусор разработки
+.git
+.gitignore
+*.log
+.DS_Store
+node_modules/.package-lock.json

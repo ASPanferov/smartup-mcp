@@ -1,0 +1,134 @@
+{
+  "manifest_version": "0.3",
+  "name": "smartup",
+  "display_name": "SmartUp",
+  "version": "1.1.0",
+  "description": "Заказы, остатки, цены, контрагенты, долги и продажи из учётной системы SmartUp — прямо в разговоре",
+  "long_description": "Коннектор к SmartUp ERP.\n\n**Чтение.** Заказы за период с составом и статусами, свободные остатки по складам, номенклатура, цены, контрагенты и их торговые точки, оплаты, возвраты, справочники.\n\n**Сводки.** Долги по клиентам (отгружено минус оплачено минус возвраты), отчёт по продажам в разрезе клиентов, товаров, дней или статусов, карточка одного заказа целиком.\n\n**Запись — по галочке.** Создание заказов, смена статусов, примечания, заведение контрагентов и торговых точек. По умолчанию выключено. Когда включено, запись разрешена только в тот филиал, код которого указан в настройках: так галочка открывает один контур, а не всю организацию. Заказы создаются черновиком, пока вы явно не попросите другой статус.\n\n**Лимиты.** У SmartUp суточные квоты на вызовы API, общие с боевой работой. У коннектора есть свой предохранитель: он считает запросы за сутки и останавливается заранее, а справочники держит в кэше на шесть часов. Расход показывает инструмент «Сколько запросов потрачено».\n\nПроект открытый: github.com/ASPanferov/smartup-mcp",
+  "author": {
+    "name": "Артём Панфёров",
+    "url": "https://panferov.uz"
+  },
+  "homepage": "https://ailab.uz",
+  "documentation": "https://github.com/ASPanferov/smartup-mcp#readme",
+  "support": "https://github.com/ASPanferov/smartup-mcp/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ASPanferov/smartup-mcp"
+  },
+  "icon": "icon.png",
+  "keywords": ["smartup", "erp", "заказы", "остатки", "склад", "b2b", "uzbekistan"],
+  "license": "MIT",
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/index.js"],
+      "env": {
+        "SMARTUP_BASE_URL": "${user_config.base_url}",
+        "SMARTUP_LOGIN": "${user_config.login}",
+        "SMARTUP_PASSWORD": "${user_config.password}",
+        "SMARTUP_FILIAL_CODE": "${user_config.filial_code}",
+        "SMARTUP_DAILY_BUDGET": "${user_config.daily_budget}",
+        "SMARTUP_ALLOW_WRITE": "${user_config.allow_write}"
+      }
+    }
+  },
+  "user_config": {
+    "login": {
+      "type": "string",
+      "title": "Логин",
+      "description": "Логин пользователя SmartUp, от имени которого работает коннектор",
+      "required": true
+    },
+    "password": {
+      "type": "string",
+      "title": "Пароль",
+      "description": "Пароль этого пользователя. Хранится в системном хранилище ключей, а не в файле",
+      "sensitive": true,
+      "required": true
+    },
+    "filial_code": {
+      "type": "string",
+      "title": "Код филиала",
+      "description": "Филиал по умолчанию, например 220.012. Для записи он обязателен: изменять данные коннектор разрешит только в этом филиале",
+      "required": false
+    },
+    "allow_write": {
+      "type": "boolean",
+      "title": "Разрешить изменение данных",
+      "description": "Без галочки коннектор только читает. С галочкой он сможет создавать заказы, менять их статусы, писать примечания и заводить контрагентов — в филиале, указанном выше. Включайте осознанно: на другом конце учётная система, из которой товар едет на склад",
+      "default": false,
+      "required": false
+    },
+    "base_url": {
+      "type": "string",
+      "title": "Адрес сервера",
+      "description": "Меняйте, только если ваш SmartUp живёт не на smartup.online",
+      "default": "https://smartup.online",
+      "required": false
+    },
+    "daily_budget": {
+      "type": "number",
+      "title": "Предел запросов в сутки",
+      "description": "Сколько обращений к SmartUp коннектору разрешено за день. Квоты API общие с боевой работой: справочники около сотни вызовов в сутки, документы несколько сотен",
+      "default": 60,
+      "min": 1,
+      "max": 500,
+      "required": false
+    }
+  },
+  "tools": [
+    { "name": "smartup_orders", "description": "Заказы за период с составом и статусами" },
+    { "name": "smartup_order", "description": "Один заказ целиком по номеру сделки" },
+    { "name": "smartup_stock", "description": "Свободные остатки по товарам и складам" },
+    { "name": "smartup_products", "description": "Справочник номенклатуры" },
+    { "name": "smartup_prices", "description": "Цены товаров по типам прайса" },
+    { "name": "smartup_contractors", "description": "Контрагенты и их торговые точки" },
+    { "name": "smartup_payments", "description": "Приходы денег за период" },
+    { "name": "smartup_returns", "description": "Возвраты товара за период" },
+    { "name": "smartup_debt", "description": "Долги по клиентам: отгружено минус оплачено минус возвраты" },
+    { "name": "smartup_sales", "description": "Отчёт по продажам: по клиентам, товарам, дням или статусам" },
+    { "name": "smartup_reference", "description": "Склады, группы товаров, производители, типы цен, договоры, рейсы" },
+    { "name": "smartup_export", "description": "Прямой вызов любого метода выгрузки" },
+    { "name": "smartup_usage", "description": "Сколько запросов потрачено за сегодня" },
+    { "name": "smartup_order_create", "description": "Создать заказ. Требует режима записи" },
+    { "name": "smartup_order_status", "description": "Сменить статус заказа. Требует режима записи" },
+    { "name": "smartup_order_note", "description": "Примечание к заказу. Требует режима записи" },
+    { "name": "smartup_contractor_create", "description": "Завести контрагента или точку. Требует режима записи" }
+  ],
+  "prompts": [
+    {
+      "name": "smartup_daily",
+      "description": "Сводка по дню: заказы, оплаты, что застряло",
+      "arguments": ["date"],
+      "text": "Собери сводку по SmartUp за ${arguments.date}. Возьми заказы и оплаты за эту дату, покажи: сколько заказов и на какую сумму, кто заказал больше всех, какие заказы остались в черновиках или незакрытых статусах, сколько денег пришло. Отдельно назови то, что требует внимания менеджера."
+    },
+    {
+      "name": "smartup_client",
+      "description": "Досье по клиенту: заказы, оплаты, долг, точки",
+      "arguments": ["client"],
+      "text": "Собери досье по клиенту «${arguments.client}» из SmartUp: найди его карточку и торговые точки, покажи заказы за последний месяц с суммами и статусами, оплаты за тот же период, возвраты и текущий долг. В конце — короткий вывод: как идут отгрузки и есть ли что-то настораживающее."
+    },
+    {
+      "name": "smartup_debtors",
+      "description": "Кому звонить: список должников",
+      "arguments": ["period"],
+      "text": "Покажи должников по SmartUp за период ${arguments.period}. Отсортируй по размеру долга, для первых десяти покажи, когда была последняя оплата и есть ли незакрытые заказы. Скажи, с кого начать обзвон и почему."
+    },
+    {
+      "name": "smartup_stock_check",
+      "description": "Проверка наличия перед отгрузкой",
+      "arguments": ["products"],
+      "text": "Проверь по SmartUp наличие: ${arguments.products}. По каждой позиции покажи свободный остаток и склад. Отдельно перечисли то, чего нет или осталось мало."
+    }
+  ],
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
+  }
+}
