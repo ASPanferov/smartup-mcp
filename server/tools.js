@@ -208,31 +208,65 @@ const READ_TOOLS = [
   {
     name: 'smartup_prices',
     title: 'Цены',
-    description: 'Цены товаров по типам прайса. Отвечает на «почём отгружаем», «какая цена у клиента такого-то типа».',
+    description:
+      'Действующие цены товаров по типам прайса. Отвечает на «почём отгружаем», «какая цена у этого товара». ' +
+      'Показывает название товара, а не только код.',
     inputSchema: {
       type: 'object',
       properties: {
         query: { type: 'string', description: 'Поиск по названию или коду товара' },
-        price_type_code: { type: 'string', description: 'Код типа цены. Список — в smartup_reference(price_type)' },
+        price_type_code: { type: 'string', description: 'Оставить только этот тип прайса, например B2B' },
+        with_zero: { type: 'boolean', description: 'Показывать позиции с нулевой ценой. По умолчанию нет' },
         limit: { type: 'number' },
         filial_code: { type: 'string' },
       },
     },
     async run(input) {
-      const res = await call('productPrice', {
-        ...(input.price_type_code ? { price_type_code: input.price_type_code } : {}),
-        ...(input.filial_code ? { filial_code: input.filial_code } : {}),
-      });
-      const rows = res.items.filter((r) => matches(r, input.query, ['inventory_name', 'inventory_code', 'product_name', 'product_code']));
-      const shown = rows.slice(0, limitOf(input)).map((r) => ({
-        товар: r.inventory_name ?? r.product_name,
-        код: r.inventory_code ?? r.product_code,
-        цена: r.price ?? r.amount ?? null,
-        валюта: r.currency_code ?? r.currency ?? null,
-        тип_цены: r.price_type_name ?? r.price_type_code ?? null,
-        действует_с: r.begin_date ?? null,
-      }));
-      return reply(summaryOf(res, shown.length, { после_поиска: rows.length }), shown);
+      const res = await cachedCall('productPrice', input.filial_code ? { filial_code: input.filial_code } : {});
+
+      /*
+       * Цена лежит НЕ в корне строки, а во вложенном массиве price_type: у
+       * одного товара их столько, сколько прайсов в системе. Читать r.price
+       * означает получить undefined по каждой позиции и решить, что цен нет
+       * вовсе — ровно так и выглядела эта выгрузка до 10.09.
+       */
+      const names = new Map();
+      if (input.no_names !== true) {
+        const inv = await cachedCall('inventory', {});
+        for (const p of inv.items) names.set(String(p.code), p);
+      }
+
+      const flat = [];
+      for (const row of res.items) {
+        const code = String(row.inventory_code ?? row.product_code ?? '');
+        const card = names.get(code);
+        for (const pt of row.price_type ?? []) {
+          if (input.price_type_code && String(pt.price_type_code) !== String(input.price_type_code)) continue;
+          const price = Number(pt.price ?? 0);
+          if (!price && input.with_zero !== true) continue;
+          flat.push({
+            товар: card?.name ?? card?.short_name ?? `код ${code}`,
+            код: code,
+            цена: price.toLocaleString('ru-RU'),
+            тип_цены: pt.price_type_code ?? null,
+            рекомендованная: pt.recommended_price ? Number(pt.recommended_price).toLocaleString('ru-RU') : undefined,
+            в_коробе: card?.box_quant ?? undefined,
+          });
+        }
+      }
+
+      const rows = input.query
+        ? flat.filter((r) => `${r.товар} ${r.код}`.toLowerCase().includes(String(input.query).toLowerCase()))
+        : flat;
+
+      return reply(
+        summaryOf(res, Math.min(rows.length, limitOf(input)), {
+          позиций_с_ценой: flat.length,
+          после_поиска: rows.length,
+          типы_прайса: [...new Set(flat.map((r) => r.тип_цены).filter(Boolean))].slice(0, 8),
+        }),
+        rows.slice(0, limitOf(input)),
+      );
     },
   },
 

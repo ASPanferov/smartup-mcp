@@ -1,4 +1,5 @@
 import { EP, SmartUpError, importResult, rawCall, readConfig, toSmartUpDate } from './smartup.js';
+import { learnCodes, valueOf } from './codes.js';
 import { num, reply } from './format.js';
 
 /**
@@ -45,9 +46,10 @@ export const WRITE_TOOLS = [
     name: 'smartup_order_create',
     title: 'Создать заказ',
     description:
-      'Заводит заказ в учётной системе. По умолчанию ЧЕРНОВИКОМ: склад его не соберёт, пока менеджер не проведёт ' +
-      'документ. Требует включённого режима записи. Повторный вызов с тем же external_id обновляет тот же заказ, ' +
-      'а не создаёт второй.',
+      'Заводит заказ в учётной системе. Достаточно указать клиента и товары: рабочую зону, менеджера, тип цены и ' +
+      'склад коннектор подставит сам из заказов, которые уже прошли. По умолчанию заказ создаётся ЧЕРНОВИКОМ — ' +
+      'склад его не соберёт, пока менеджер не проведёт документ. Требует включённого режима записи. Повторный ' +
+      'вызов с тем же external_id обновляет тот же заказ, а не создаёт второй.',
     destructive: true,
     inputSchema: {
       type: 'object',
@@ -79,6 +81,12 @@ export const WRITE_TOOLS = [
         robot_code: { type: 'string', description: 'Код источника заказа, если он требуется в вашем контуре' },
         currency_code: { type: 'string', description: `Валюта числовым кодом. По умолчанию ${CURRENCY_UZS} — сум` },
         filial_code: { type: 'string', description: 'Филиал. По умолчанию тот, что в настройках' },
+        no_autofill: {
+          type: 'boolean',
+          description:
+            'Не подставлять недостающие коды из прошлых заказов. По умолчанию подставляются: рабочая зона, ' +
+            'менеджер, тип цены и склад берутся из документов, которые учётная система уже приняла',
+        },
       },
       required: ['person_code', 'products'],
     },
@@ -87,6 +95,39 @@ export const WRITE_TOOLS = [
       const filial = (input.filial_code ?? cfg.filial ?? '').trim();
       if (!Array.isArray(input.products) || input.products.length === 0) {
         throw new SmartUpError('В заказе нет ни одной строки');
+      }
+
+      /*
+       * Коды, без которых учётная система заказ не примет, спрашивать у
+       * человека бессмысленно: справочника штата в API нет, а отказ приходит
+       * с чужим именем — «Штат не найден» вместо «нет рабочей зоны».
+       * Поэтому недостающее берём из заказов, которые уже прошли: раз
+       * документ существует, эти коды рабочие. Подставленное показываем в
+       * ответе, чтобы подстановка не была тихой.
+       */
+      let learned = null;
+      const filled = {};
+      const need = async (field, given) => {
+        if (given) return String(given);
+        if (input.no_autofill) return null;
+        learned ??= await learnCodes(filial, input.person_code);
+        const found = valueOf(learned, field);
+        if (found) filled[field] = found;
+        return found;
+      };
+
+      const roomCode = await need('room_code', input.room_code);
+      const managerCode = await need('sales_manager_code', input.sales_manager_code);
+      const robotCode = await need('robot_code', input.robot_code);
+      const priceType = await need('price_type_code', input.products.find((p) => p.price_type_code)?.price_type_code);
+      const warehouse = await need('warehouse_code', input.products.find((p) => p.warehouse_code)?.warehouse_code);
+
+      if (!roomCode && !input.no_autofill) {
+        throw new SmartUpError(
+          'Не нашлось кода рабочей зоны: за последние 60 дней в этом филиале нет ни одного проведённого заказа, ' +
+            'из которого его можно взять. Передайте room_code явно — посмотреть варианты можно инструментом ' +
+            'smartup_order_defaults или smartup_reference с name=room.',
+        );
       }
 
       const externalId = String(input.external_id ?? generatedId('mcp')).trim();
@@ -116,17 +157,19 @@ export const WRITE_TOOLS = [
             product_price: String(num(p.price)),
             inventory_kind: String(p.inventory_kind ?? GOODS),
           };
-          if (p.price_type_code) item.price_type_code = String(p.price_type_code);
-          if (p.warehouse_code) item.warehouse_code = String(p.warehouse_code);
+          const pt = p.price_type_code ?? priceType;
+          const wh = p.warehouse_code ?? warehouse;
+          if (pt) item.price_type_code = String(pt);
+          if (wh) item.warehouse_code = String(wh);
           return item;
         }),
       };
 
-      // Необязательные поля кладём, только когда они названы: лишний ключ
+      // Необязательные поля кладём, только когда они известны: лишний ключ
       // роняет весь документ
-      if (input.room_code) header.room_code = String(input.room_code);
-      if (input.sales_manager_code) header.sales_manager_code = String(input.sales_manager_code);
-      if (input.robot_code) header.robot_code = String(input.robot_code);
+      if (roomCode) header.room_code = String(roomCode);
+      if (managerCode) header.sales_manager_code = String(managerCode);
+      if (robotCode) header.robot_code = String(robotCode);
       if (input.note) header.note = String(input.note);
 
       const { successes } = await write('orderImport', { order: [header] });
@@ -144,6 +187,8 @@ export const WRITE_TOOLS = [
           позиций: header.order_products.length,
           сумма: total.toLocaleString('ru-RU'),
           филиал: filial,
+          подставлено_автоматически: Object.keys(filled).length ? filled : undefined,
+          источник_кодов: Object.keys(filled).length ? learned?.source : undefined,
         },
         successes,
       );

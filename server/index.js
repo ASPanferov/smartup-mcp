@@ -22,7 +22,7 @@ import { TOOLS, runTool } from './tools.js';
  */
 
 const server = new Server(
-  { name: 'smartup', version: '1.1.0' },
+  { name: 'smartup', version: '1.2.0' },
   { capabilities: { tools: {} } },
 );
 

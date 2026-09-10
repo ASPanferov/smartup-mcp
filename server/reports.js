@@ -1,4 +1,5 @@
-import { call, toSmartUpDate } from './smartup.js';
+import { call, readConfig, toSmartUpDate } from './smartup.js';
+import { learnCodes } from './codes.js';
 import { DATE_HINT, limitOf, money, num, reply, summaryOf } from './format.js';
 
 /**
@@ -17,6 +18,85 @@ const IN_PROGRESS = new Set(['D', 'B#N', 'B#E', 'B#W', 'B#S']);
 const CANCELLED = 'C';
 
 export const REPORT_TOOLS = [
+  {
+    name: 'smartup_staff',
+    title: 'Менеджеры и штат',
+    description:
+      'Менеджеры продаж, которых учётная система принимает в заказах: код штата, имя и рабочие зоны. ' +
+      'Отдельного справочника штата в API SmartUp нет, поэтому список собирается из проведённых заказов — ' +
+      'то есть содержит только те коды, которые заведомо работают.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Поиск по имени или коду' },
+        filial_code: { type: 'string' },
+      },
+    },
+    async run(input) {
+      const cfg = readConfig();
+      const filial = (input.filial_code ?? cfg.filial ?? '').trim();
+      const learned = await learnCodes(filial, null);
+      let rows = learned.managers;
+      if (input.query) {
+        const q = String(input.query).toLowerCase();
+        rows = rows.filter((m) => `${m.имя ?? ''} ${m.code}`.toLowerCase().includes(q));
+      }
+      return reply(
+        {
+          менеджеров: rows.length,
+          источник: 'проведённые заказы за 60 дней — справочника штата в API нет',
+          заказов_просмотрено: learned.ordersLookedAt,
+          филиал: filial || 'по умолчанию',
+          примечание:
+            'Код в колонке code — это код ШТАТНОЙ ЕДИНИЦЫ (sales_manager_code), а не код физлица. ' +
+            'Зона важнее имени: штат учётная система ищет именно по рабочей зоне заказа.',
+        },
+        rows,
+      );
+    },
+  },
+
+  {
+    name: 'smartup_order_defaults',
+    title: 'Коды для создания заказа',
+    description:
+      'Какие коды подставятся при создании заказа и откуда они взяты: рабочая зона, менеджер, тип цены, склад, ' +
+      'робот. Полезно посмотреть до записи — особенно если заказ уже отклоняли. Ничего не меняет.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        person_code: { type: 'string', description: 'Клиент, для которого готовится заказ. По нему коды точнее' },
+        filial_code: { type: 'string' },
+      },
+    },
+    async run(input) {
+      const cfg = readConfig();
+      const filial = (input.filial_code ?? cfg.filial ?? '').trim();
+      const learned = await learnCodes(filial, input.person_code ?? null);
+
+      const rows = Object.entries(learned.codes).map(([field, hit]) => ({
+        поле: field,
+        значение: hit?.value ?? null,
+        подтверждено_заказами: hit?.orders ?? 0,
+        других_вариантов: hit ? hit.variants - 1 : 0,
+      }));
+
+      return reply(
+        {
+          источник: learned.source,
+          заказов_просмотрено: learned.ordersLookedAt,
+          заказов_этого_клиента: learned.clientOrders,
+          филиал: filial || 'по умолчанию',
+          как_читать:
+            'Эти значения smartup_order_create подставит сам, если вы их не передадите. ' +
+            'Важнее всего room_code: без рабочей зоны учётная система отклоняет заказ словами ' +
+            '«Штат не найден», хотя дело не в менеджере.',
+        },
+        rows,
+      );
+    },
+  },
+
   {
     name: 'smartup_debt',
     title: 'Долги и взаиморасчёты',

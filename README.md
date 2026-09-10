@@ -17,7 +17,7 @@ AI:   [smartup_debt] → 8 clients with outstanding balance, 18.2M UZS total.
 
 ## What it does
 
-**17 tools in three groups.**
+**19 tools in three groups.**
 
 ### Reading
 
@@ -31,6 +31,8 @@ AI:   [smartup_debt] → 8 clients with outstanding balance, 18.2M UZS total.
 | `smartup_contractors` | Legal entities and their retail points |
 | `smartup_payments` | Incoming payments for a period |
 | `smartup_returns` | Returns for a period |
+| `smartup_staff` | Sales managers: staff codes, names and the zones they work in |
+| `smartup_order_defaults` | Which codes an order will use and where they came from |
 | `smartup_reference` | Warehouses, product groups, producers, price types, contracts, routes |
 | `smartup_export` | Direct call to any `$export` method, when a ready-made tool is not enough |
 | `smartup_usage` | How many requests the connector has spent today |
@@ -219,6 +221,24 @@ Three things about this API shape everything in the code, and they will surprise
 **Two incompatible response shapes.** Most endpoints answer `{ "<entity>": [...], "limits": {...} }`; the `/api/v2/` ones answer `{ "count": "1", "data": [...] }`. One endpoint — `product_price$export` — is `/api/v2/` but still uses the entity key. The connector handles all three.
 
 Dates go in as `dd.mm.yyyy`. Tools accept `2026-09-06`, `06.09.2026`, `yesterday` or `-7d` and convert.
+
+### Codes an order needs — and the error that lies about them
+
+Creating an order requires codes a human has no way to look up: work zone, sales staff, price type, warehouse, robot. There is **no staff endpoint in the API at all** — `staff$export` answers 404 — and the code on a client's card may point at a zone with nobody assigned to it.
+
+Worse, the refusal arrives under the wrong name. An order without `room_code` is rejected with *"Штат не найден. Код штата ="* — "staff not found" — because SmartUp derives the staff **from the zone** and, finding no zone, reports an empty staff code. You go hunting for a manager while the missing piece is the zone.
+
+So the connector does not ask you for these codes. It reads them off orders that already went through — codes that are provably valid, since the document exists — and tells you what it used:
+
+```
+"подставлено_автоматически": {
+  "room_code": "000001", "sales_manager_code": "012",
+  "price_type_code": "B2B", "warehouse_code": "124799"
+},
+"источник_кодов": "заказы этого клиента"
+```
+
+Pass `no_autofill: true` to turn this off, or `smartup_order_defaults` to see the codes before writing anything.
 
 ---
 

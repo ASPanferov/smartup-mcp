@@ -18,7 +18,7 @@ AI:  [smartup_debt] → 8 ta mijozda qarz bor, jami 18,2 mln so'm.
 
 ## Imkoniyatlari
 
-**Uchta guruhda 17 ta vosita.**
+**Uchta guruhda 19 ta vosita.**
 
 ### O'qish
 
@@ -32,6 +32,8 @@ AI:  [smartup_debt] → 8 ta mijozda qarz bor, jami 18,2 mln so'm.
 | `smartup_contractors` | Yuridik shaxslar va ularning savdo nuqtalari |
 | `smartup_payments` | Davr ichida kelgan pullar |
 | `smartup_returns` | Davr ichidagi qaytarishlar |
+| `smartup_staff` | Savdo menejerlari: shtat kodlari, ismlari va ish zonalari |
+| `smartup_order_defaults` | Buyurtmaga qaysi kodlar qo'yiladi va ular qayerdan olingan |
 | `smartup_reference` | Omborlar, tovar guruhlari, ishlab chiqaruvchilar, narx turlari, shartnomalar, reyslar |
 | `smartup_export` | Tayyor vosita yetmasa — istalgan `$export` metodini to'g'ridan-to'g'ri chaqirish |
 | `smartup_usage` | Konnektor bugun nechta so'rov sarflagani |
@@ -220,6 +222,24 @@ Bu API'ning uchta xususiyati koddagi deyarli hamma narsani belgilaydi, va ular b
 **Javobning ikkita mos kelmaydigan shakli.** Ko'p metodlar `{ "<mohiyat>": [...], "limits": {...} }` deb javob beradi, `/api/v2/` metodlari esa `{ "count": "1", "data": [...] }`. Bitta metod — `product_price$export` — rasman `/api/v2/`, lekin ildiz kaliti baribir mohiyat nomi bo'yicha. Konnektor uchala holatni ham hal qiladi.
 
 Sanalar `kk.oo.yyyy` ko'rinishida yuboriladi. Vositalar `2026-09-06`, `06.09.2026`, "kecha" yoki `-7d` ni qabul qilib, o'zi o'giradi.
+
+### Buyurtma uchun kodlar va ular haqida yolg'on gapiradigan xato
+
+Buyurtma yaratish uchun SmartUp odam topa olmaydigan kodlarni talab qiladi: ish zonasi, menejer shtati, narx turi, ombor, robot. Shtat ma'lumotnomasi **API'da umuman yo'q** — `staff$export` 404 qaytaradi — mijoz kartochkasidagi kod esa hech kim biriktirilmagan zonaga ishora qilishi mumkin.
+
+Bundan ham yomoni: rad javobi boshqa nom bilan keladi. `room_code` siz buyurtma *«Штат не найден. Код штата =»* so'zlari bilan rad etiladi, chunki hisob tizimi shtatni **zonadan** chiqaradi va zonani topolmay, bo'sh shtat haqida xabar beradi. Odam menejer qidirib ketadi, aslida esa zona yetishmaydi.
+
+Shuning uchun konnektor bu kodlarni so'ramaydi. U ularni allaqachon o'tgan buyurtmalardan oladi — hujjat mavjudligining o'zi bu kodlar ishlashini isbotlaydi — va nimani qo'yganini ko'rsatadi:
+
+```
+"подставлено_автоматически": {
+  "room_code": "000001", "sales_manager_code": "012",
+  "price_type_code": "B2B", "warehouse_code": "124799"
+},
+"источник_кодов": "заказы этого клиента"
+```
+
+`no_autofill: true` parametri bilan o'chiriladi. Yozishdan oldin kodlarni ko'rish — `smartup_order_defaults`.
 
 ---
 

@@ -1,6 +1,6 @@
 {
   "name": "smartup-mcp",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "MCP server for SmartUp ERP: orders, stock, prices, contractors, debts and sales",
   "main": "server/index.js",
   "keywords": [
